@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 패션 추천 시스템</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f7f9fc; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h3 { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 200px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9em; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.3s; }
+        button:hover { background-color: #2563eb; }
+        button.secondary { background-color: #6b7280; }
+        button.secondary:hover { background-color: #4b5563; }
+        
+        /* 갤러리 스타일 */
+        .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .gallery-item { border: 2px solid transparent; border-radius: 8px; cursor: pointer; overflow: hidden; text-align: center; font-size: 0.8em; }
+        .gallery-item img { width: 100%; height: 200px; object-fit: cover; }
+        .gallery-item.selected { border-color: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.5); }
+        
+        #page-result { display: none; }
+        .loading { display: none; text-align: center; font-weight: bold; color: #3b82f6; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 1. 입력 페이지 -->
+    <div id="page-input">
+        <h3>1. 스타일 조건을 입력해주세요</h3>
+        
+        <div class="row">
+            <div class="col">
+                <label>성별</label>
+                <select id="g"><option value="male">남성</option><option value="female">여성</option></select>
+                <label style="margin-top: 10px;"><input type="checkbox" id="check"> 다른 성별의 제품도 볼래요</label>
+            </div>
+            <div class="col"><label>키 (cm)</label><input type="number" id="h" value="175"></div>
+            <div class="col"><label>몸무게 (kg)</label><input type="number" id="w" value="70"></div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <label>브랜드 그룹</label>
+                <input type="text" id="bg" placeholder="예: 미니멀리즘, 높은 퀄리티...">
+            </div>
+            <div class="col">
+                <label>카테고리</label>
+                <input type="text" id="cat" placeholder="예: 후드티">
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col"><label>최소 가격</label><input type="number" id="min_p" value="0"></div>
+            <div class="col"><label>최대 가격</label><input type="number" id="max_p" value="100000"></div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <label>스타일 (선택)</label>
+                <input type="text" id="sl" value="선택 안 함">
+            </div>
+            <div class="col">
+                <label>텍스트 (패션 추구미)</label>
+                <input type="text" id="tx" placeholder="직접 입력해보세요">
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <label>이미지 첨부 (선택)</label>
+                <input type="file" id="img" accept="image/*">
+            </div>
+        </div>
+
+        <button onclick="searchProducts()">🔍 검색</button>
+        <div class="loading" id="loading-msg">🚀 AI가 데이터를 분석 중입니다... 잠시만 기다려주세요.</div>
+    </div>
+
+    <!-- 2. 결과 페이지 -->
+    <div id="page-result">
+        <h3>2. 추천 결과</h3>
+        
+        <label>나만의 패션 페르소나</label>
+        <textarea id="out_p" rows="3" readonly></textarea>
+
+        <div class="row" style="margin-top: 20px;">
+            <div class="col" style="flex: 2;">
+                <label>검색 결과 (클릭하여 선택)</label>
+                <div class="gallery" id="gallery-container"></div>
+            </div>
+            <div class="col">
+                <label>사이즈 추천을 원하는 상품</label>
+                <input type="text" id="sel_product" readonly style="background: #e5e7eb;">
+                <button onclick="recommendSize()">사이즈 추천 받기</button>
+                
+                <label style="margin-top: 15px;">추천 사이즈</label>
+                <input type="text" id="f_sz" readonly>
+                <label style="margin-top: 10px;">추천 이유 설명</label>
+                <textarea id="out_m" rows="5" readonly></textarea>
+            </div>
+        </div>
+
+        <button class="secondary" onclick="goBack()">검색 조건 다시 입력하기</button>
+    </div>
+</div>
+
+<script>
+    // 상태 저장용 전역 변수 (Gradio의 gr.State 역할)
+    let global_p_map = {};
+    let global_user_info = {};
+
+    async function searchProducts() {
+        document.getElementById("loading-msg").style.display = "block";
+        
+        const formData = new FormData();
+        formData.append("g", document.getElementById("g").value);
+        formData.append("h", document.getElementById("h").value);
+        formData.append("w", document.getElementById("w").value);
+        formData.append("bg", document.getElementById("bg").value);
+        formData.append("cat", document.getElementById("cat").value);
+        formData.append("min_p", document.getElementById("min_p").value);
+        formData.append("max_p", document.getElementById("max_p").value);
+        formData.append("check", document.getElementById("check").checked);
+        formData.append("sl", document.getElementById("sl").value);
+        formData.append("tx", document.getElementById("tx").value);
+        
+        const imgFile = document.getElementById("img").files[0];
+        if (imgFile) formData.append("img", imgFile);
+
+        try {
+            const response = await fetch("http://127.0.0.1:8000/api/search", {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+
+            if(data.success) {
+                // 상태 데이터 저장
+                global_p_map = data.p_map;
+                global_user_info = data.user_info;
+
+                // 결과 페이지 채우기
+                document.getElementById("out_p").value = data.persona;
+                
+                // 갤러리 렌더링
+                const gallery = document.getElementById("gallery-container");
+                gallery.innerHTML = "";
+                data.gallery.forEach(item => {
+                    const imgUrl = item[0];
+                    const label = item[1];
+                    const div = document.createElement("div");
+                    div.className = "gallery-item";
+                    div.innerHTML = `<img src="${imgUrl}" alt="이미지 없음"><br><span>${label}</span>`;
+                    
+                    // 갤러리 클릭 이벤트 (gr.SelectData 역할)
+                    div.onclick = function() {
+                        document.querySelectorAll(".gallery-item").forEach(el => el.classList.remove("selected"));
+                        div.classList.add("selected");
+                        document.getElementById("sel_product").value = label;
+                        document.getElementById("f_sz").value = "";
+                        document.getElementById("out_m").value = "";
+                    };
+                    gallery.appendChild(div);
+                });
+
+                // 페이지 전환
+                document.getElementById("page-input").style.display = "none";
+                document.getElementById("page-result").style.display = "block";
+            } else {
+                alert("오류 발생: " + data.error);
+            }
+        } catch (error) {
+            alert("서버 연결 실패: " + error);
+        } finally {
+            document.getElementById("loading-msg").style.display = "none";
+        }
+    }
+
+    async function recommendSize() {
+        const selProduct = document.getElementById("sel_product").value;
+        if (!selProduct) return alert("먼저 갤러리에서 상품을 클릭해주세요!");
+
+        document.getElementById("f_sz").value = "분석 중...";
+        document.getElementById("out_m").value = "리뷰 데이터를 기반으로 사이즈를 계산하고 있습니다...";
+
+        try {
+            const response = await fetch("http://127.0.0.1:8000/api/recommend_size", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sel_product: selProduct,
+                    p_map: global_p_map,
+                    user_info: global_user_info
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById("f_sz").value = data.rec_size;
+                document.getElementById("out_m").value = data.reason;
+            } else {
+                alert("사이즈 분석 오류: " + data.error);
+            }
+        } catch (error) {
+            alert("서버 연결 실패: " + error);
+        }
+    }
+
+    function goBack() {
+        document.getElementById("page-input").style.display = "block";
+        document.getElementById("page-result").style.display = "none";
+        document.getElementById("sel_product").value = "";
+    }
+</script>
+
+</body>
+</html>
