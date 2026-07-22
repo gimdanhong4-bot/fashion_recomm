@@ -1,14 +1,14 @@
 name: Sync to Hugging Face hub
 on:
   push:
-    branches: [main] # 만약 기본 브랜치가 master라면 master로 변경
+    branches: [main, master] # main이나 master 어디에 올려도 작동하도록 추가
   workflow_dispatch:
 
 jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4 # 👈 v4로 업데이트 완료 (경고 해결)
         with:
           fetch-depth: 0
           lfs: true
@@ -16,5 +16,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # 👇 아래 줄의 [본인아이디]와 [스페이스이름]을 꼭 수정해주세요! (괄호는 지우세요)
           git remote add space https://developerDH:${HF_TOKEN}@huggingface.co/spaces/developerDH/fashion_rec_sys
-          git push --force space main
+          
+          # 👇 브랜치 이름 충돌을 방지하는 마법의 명령어 (수정 완료)
+          git push --force space HEAD:main
