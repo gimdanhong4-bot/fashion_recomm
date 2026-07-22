@@ -1,0 +1,16 @@
+pysqlite3-binary
+torch
+torchvision
+chromadb
+langchain-chroma
+pandas
+gradio
+numpy
+Pillow
+transformers
+langchain-huggingface
+langchain-core
+sentence-transformers
+langchain-google-genai
+gspread
+oauth2client
