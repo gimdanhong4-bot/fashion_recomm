@@ -31,7 +31,19 @@ import json
 # [1] 구글 시트 연결 설정 함수
 def get_google_sheet():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('fashion_key.json', scope)
+    
+    # 1. Render 환경 변수에서 JSON 문자열 불러오기
+    key_json_str = os.environ.get('GOOGLE_SHEET_KEY')
+    
+    # 2. 로컬 테스트용 예외 처리 (환경 변수가 없으면 기존 파일 사용)
+    if key_json_str:
+        key_dict = json.loads(key_json_str)
+        # 파일이 아닌 딕셔너리로 인증하는 함수 사용
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+    else:
+        # 내 컴퓨터에서 돌릴 때는 그대로 파일 사용
+        creds = ServiceAccountCredentials.from_json_keyfile_name('fashion_key.json', scope)
+        
     client = gspread.authorize(creds)
     sh = client.open('패션추천시스템_사용자정보')
     return sh
@@ -879,5 +891,4 @@ except:
     pass
 
 if __name__ == "__main__":
-    # share=True는 빼고, 서버가 지정해주는 포트(0.0.0.0)로 열리게 세팅
-    app.queue().launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+    app.queue().launch()
