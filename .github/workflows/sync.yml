@@ -1,0 +1,20 @@
+name: Sync to Hugging Face hub
+on:
+  push:
+    branches: [main] # 만약 기본 브랜치가 master라면 master로 변경
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Push to hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add space https://developerDH:${HF_TOKEN}@huggingface.co/spaces/developerDH/fashion_rec_sys
+          git push --force space main
